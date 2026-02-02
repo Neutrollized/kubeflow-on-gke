@@ -1,0 +1,226 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  # kubeflow namespace
+  KATIB_VERSION: 0.17.0
+
+  MODEL_REGISTRY_NAMESPACE: kubeflow
+  MODEL_REGISTRY_VERSION: 0.2.22
+
+  # kubeflow namespace
+  PIPELINES_VERSION: 2.14.4
+  CERTMANAGER_VERSION: 1.18.4
+
+  SPARK_OPERATOR_NAMESPACE: spark-operator
+  SPARK_OPERATOR_RELEASE_NAME: spark-operator
+  SPARK_OPERATOR_VERSION: 2.4.0
+
+  TRAINER_NAMESPACE: kubeflow-system
+  TRAINER_RELEASE_NAME: kubeflow-trainer
+  TRAINER_VERSION: 2.1.0
+
+tasks:
+  default:
+    cmds:
+      - task --list
+    silent: true
+
+  help:
+    desc: show all available tasks
+    cmds:
+      - task --list
+
+
+  #------------------------------
+  # Katib tasks
+  # https://www.kubeflow.org/docs/components/katib/installation/
+  #------------------------------
+  katib:install:
+    desc: install Kubeflow Katib (Auto ML)
+    cmds:
+      - "kubectl apply -k \"github.com/kubeflow/katib.git/manifests/v1beta1/installs/katib-standalone?ref=v{{.KATIB_VERSION}}\""
+    internal: true
+
+  katib:uninstall:
+    desc: uninstall Kubeflow Katib (Auto ML)
+    cmds:
+      - "kubectl delete -k \"github.com/kubeflow/katib.git/manifests/v1beta1/installs/katib-standalone?ref=v{{.KATIB_VERSION}}\""
+    internal: true
+
+  katib:all:
+    desc: full Kubeflow Katib install
+    cmds:
+      - task: katib:install
+
+  katib:clean:
+    desc: cleanup Kubeflow Katib install
+    cmds:
+      - task: katib:uninstall
+
+
+  #------------------------------
+  # Model Registry tasks
+  # https://www.kubeflow.org/docs/components/model-registry/installation/
+  #------------------------------
+  registry:install:
+    desc: install Kubeflow Model Registry
+    cmds:
+      - "kubectl apply -n {{.MODEL_REGISTRY_NAMESPACE}} -k \"https://github.com/kubeflow/model-registry/manifests/kustomize/overlays/db?ref=v${MODEL_REGISTRY_VERSION}\""
+    internal: true
+
+  registry:uninstall:
+    desc: uninstall Kubeflow Model Registry
+    cmds:
+      - "kubectl delete -n {{.MODEL_REGISTRY_NAMESPACE}} -k \"https://github.com/kubeflow/model-registry/manifests/kustomize/overlays/db?ref=v${MODEL_REGISTRY_VERSION}\""
+    internal: true
+
+  registry:all:
+    desc: full Kubeflow Model Registry install
+    cmds:
+      - task: registry:install
+
+  registry:clean:
+    desc: cleanup Kubeflow Model Registry install
+    cmds:
+      - task: registry:uninstall
+
+
+  #------------------------------
+  # Pipelines tasks
+  # https://github.com/kubeflow/pipelines
+  # https://www.kubeflow.org/docs/components/pipelines/operator-guides/installation/
+  #------------------------------
+  pipelines:standalone:cluster-resources:
+    desc: install Kubeflow Pipelines standalone cluster resources
+    cmds:
+      - "kubectl apply -k \"github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref={{.PIPELINES_VERSION}}\""
+    status:
+      - kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
+    internal: true
+
+  pipelines:standalone:install:
+    desc: install Kubeflow Pipelines standalone
+    deps: [pipelines:standalone:cluster-resources]
+    cmds:
+      - "kubectl apply -k \"github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref={{.PIPELINES_VERSION}}\""
+
+  pipelines:standalone:native-install:
+    desc: install Kubeflow Pipelines
+    deps: [pipelines:standalone:cluster-resources]
+    cmds:
+      - kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v{{.CERTMANAGER_VERSION}}/cert-manager.yaml
+      - kubectl wait --for=condition=Ready pod -l app.kubernetes.io/instance=cert-manager -n cert-manager --timeout=300s
+      - "kubectl apply -k \"github.com/kubeflow/pipelines/manifests/kustomize/env/cert-manager/platform-agnostic-k8s-native?ref={{.PIPELINES_VERSION}}\""
+
+  pipelines:standalone:uninstall:
+    desc: uninstall Kubeflow Pipelines
+    cmds:
+      - cmd: "kubectl delete -k \"github.com/kubeflow/pipelines/manifests/kustomize/env/cert-manager/platform-agnostic-k8s-native?ref={{.PIPELINES_VERSION}}\""
+        ignore_error: true
+      - cmd: "kubectl delete -k \"github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref={{.PIPELINES_VERSION}}\""
+        ignore_error: true
+      - cmd: kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download/v{{.CERTMANAGER_VERSION}}/cert-manager.yaml
+        ignore_error: true
+
+  pipelines:all:
+    desc: full Kubeflow Pipelines install
+    cmds:
+      - task: pipelines:standalone:install
+
+  pipelines:clean:
+    desc: cleanup Kubeflow Pipelines install
+    cmds:
+      - task: pipelines:standalone:uninstall
+      - "kubectl delete -k \"github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref={{.PIPELINES_VERSION}}\""
+
+
+  #------------------------------
+  # Spark Operator tasks
+  # https://www.kubeflow.org/docs/components/spark-operator/getting-started/
+  #------------------------------
+  spark:repo:install:
+    desc: adds Spark Operator helm repo
+    cmds:
+      - helm repo add spark-operator https://kubeflow.github.io/spark-operator
+      - helm repo update spark-operator
+
+  spark:repo:list:
+    desc: list available Spark Operator releases
+    deps: [spark:repo:install]
+    cmds:
+      - helm search repo spark-operator/spark-operator -l | head -10
+
+  spark:install:
+    desc: install Spark Operator
+    deps: [spark:repo:install]
+    cmds:
+      - |
+        helm install {{.SPARK_OPERATOR_RELEASE_NAME}} spark-operator/spark-operator \
+          --create-namespace \
+          --namespace {{.SPARK_OPERATOR_NAMESPACE}} \
+          --version {{.SPARK_OPERATOR_VERSION}} \
+          --set webhook.enable=true
+
+  spark:uninstall:
+    desc: uninstall Spark Operator
+    cmds:
+      - helm uninstall {{.SPARK_OPERATOR_RELEASE_NAME}} -n {{.SPARK_OPERATOR_NAMESPACE}} --keep-history
+
+  spark:all:
+    desc: full Spark Operator install
+    cmds:
+      - task: spark:repo:install
+      - task: spark:install
+
+  spark:clean:
+    desc: cleanup Spark Operator install
+    cmds:
+      - helm uninstall {{.SPARK_OPERATOR_RELEASE_NAME}} -n {{.SPARK_OPERATOR_NAMESPACE}}
+
+
+  #------------------------------
+  # Trainer tasks
+  # https://www.kubeflow.org/docs/components/trainer/operator-guides/installation/
+  #------------------------------
+  trainer:install:
+    desc: install Kubeflow Trainer
+    cmds:
+      - |
+        helm install {{.TRAINER_RELEASE_NAME}} oci://ghcr.io/kubeflow/charts/kubeflow-trainer \
+          --create-namespace \
+          --namespace {{.TRAINER_NAMESPACE}} \
+          --version {{.TRAINER_VERSION}}
+    status:
+      - kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=controller,app.kuberenetes.io/instance=kubeflow-trainer -n {{.TRAINER_NAMESPACE}} --timeout=300s
+      - kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=manager,app.kubernetes.io/instance=kubeflow-trainer -n {{.TRAINER_NAMESPACE}} --timeout=300s
+
+  trainer:uninstall:
+    desc: uninstall Kubeflow Trainer
+    cmds:
+      - helm uninstall {{.TRAINER_RELEASE_NAME}} -n {{.TRAINER_NAMESPACE}}
+
+  trainer:runtime:install:
+    desc: install Kubeflow Trainer runtime
+    deps: [trainer:install]
+    cmds:
+      - "kubectl apply --server-side -k \"https://github.com/kubeflow/trainer.git/manifests/overlays/runtimes?ref=v{{.TRAINER_VERSION}}\""
+
+  trainer:runtime:uninstall:
+    desc: uninstall Kubeflow Trainer runtime
+    cmds:
+      - "kubectl delete -k \"https://github.com/kubeflow/trainer.git/manifests/overlays/runtimes?ref=v{{.TRAINER_VERSION}}\""
+
+  trainer:all:
+    desc: full Kubeflow Trainer install
+    cmds:
+      - task: trainer:install
+      - task: trainer:runtime:install
+
+  trainer:clean:
+    desc: cleanup Kubeflow Trainer install
+    cmds:
+      - task: trainer:runtime:uninstall
+      - task: trainer:uninstall
+
