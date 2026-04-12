@@ -3,23 +3,8 @@
 version: '3'
 
 vars:
-  # kubeflow namespace
-  KATIB_VERSION: 0.17.0
-
-  MODEL_REGISTRY_NAMESPACE: kubeflow
-  MODEL_REGISTRY_VERSION: 0.2.22
-
-  # kubeflow namespace
-  PIPELINES_VERSION: 2.14.4
-  CERTMANAGER_VERSION: 1.18.4
-
-  SPARK_OPERATOR_NAMESPACE: spark-operator
-  SPARK_OPERATOR_RELEASE_NAME: spark-operator
-  SPARK_OPERATOR_VERSION: 2.4.0
-
-  TRAINER_NAMESPACE: kubeflow-system
-  TRAINER_RELEASE_NAME: kubeflow-trainer
-  TRAINER_VERSION: 2.1.0
+  KUBEFLOW_MANIFESTS_RELEASE: 26.03
+  KUBEFLOW_PROFILE: kubeflow-user-example-com
 
 tasks:
   default:
@@ -33,194 +18,556 @@ tasks:
       - task --list
 
 
-  #------------------------------
-  # Katib tasks
-  # https://www.kubeflow.org/docs/components/katib/installation/
-  #------------------------------
-  katib:install:
-    desc: install Kubeflow Katib (Auto ML)
+  #------------------------------------
+  # download Kubeflow manifests 
+  #------------------------------------
+  manifest:download+untar:
+    desc: download & untar Kubeflow release manifest
     cmds:
-      - "kubectl apply -k \"github.com/kubeflow/katib.git/manifests/v1beta1/installs/katib-standalone?ref=v{{.KATIB_VERSION}}\""
-    internal: true
-
-  katib:uninstall:
-    desc: uninstall Kubeflow Katib (Auto ML)
-    cmds:
-      - "kubectl delete -k \"github.com/kubeflow/katib.git/manifests/v1beta1/installs/katib-standalone?ref=v{{.KATIB_VERSION}}\""
-    internal: true
-
-  katib:all:
-    desc: full Kubeflow Katib install
-    cmds:
-      - task: katib:install
-
-  katib:clean:
-    desc: cleanup Kubeflow Katib install
-    cmds:
-      - task: katib:uninstall
-
-
-  #------------------------------
-  # Model Registry tasks
-  # https://www.kubeflow.org/docs/components/model-registry/installation/
-  #------------------------------
-  registry:install:
-    desc: install Kubeflow Model Registry
-    cmds:
-      - "kubectl apply -n {{.MODEL_REGISTRY_NAMESPACE}} -k \"https://github.com/kubeflow/model-registry/manifests/kustomize/overlays/db?ref=v${MODEL_REGISTRY_VERSION}\""
-    internal: true
-
-  registry:uninstall:
-    desc: uninstall Kubeflow Model Registry
-    cmds:
-      - "kubectl delete -n {{.MODEL_REGISTRY_NAMESPACE}} -k \"https://github.com/kubeflow/model-registry/manifests/kustomize/overlays/db?ref=v${MODEL_REGISTRY_VERSION}\""
-    internal: true
-
-  registry:all:
-    desc: full Kubeflow Model Registry install
-    cmds:
-      - task: registry:install
-
-  registry:clean:
-    desc: cleanup Kubeflow Model Registry install
-    cmds:
-      - task: registry:uninstall
-
-
-  #------------------------------
-  # Pipelines tasks
-  # https://github.com/kubeflow/pipelines
-  # https://www.kubeflow.org/docs/components/pipelines/operator-guides/installation/
-  #------------------------------
-  pipelines:standalone:cluster-resources:
-    desc: install Kubeflow Pipelines standalone cluster resources
-    cmds:
-      - "kubectl apply -k \"github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref={{.PIPELINES_VERSION}}\""
+      - wget https://github.com/kubeflow/manifests/archive/refs/tags/{{.KUBEFLOW_MANIFESTS_RELEASE}}.tar.gz -O manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}.tar.gz
+      - tar -zxf manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}.tar.gz
     status:
-      - kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
+      - test -f manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}.tar.gz
+      - test -d manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}
+
+  manifest:cleanup:
+    desc: cleanup Kubeflow release manifest
+    dir: ./
+    cmds:
+      - rm -Rf manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}
+      - rm  manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}.tar.gz
+    status:
+      - test ! -d manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}
+      - test ! -f manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}.tar.gz
+
+
+  #-----------------------------------------------------
+  # from Kubeflow manifests GitHub - Common 
+  #-----------------------------------------------------
+  kf:namespaces:setup:
+    desc: setup Kubeflow namespace & NetworkPolicy
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
+    cmds:
+      - kustomize build kubeflow-namespace/base | kubectl apply -f -
     internal: true
 
-  pipelines:standalone:install:
-    desc: install Kubeflow Pipelines standalone
-    deps: [pipelines:standalone:cluster-resources]
+  kf:namespaces:delete:
+    desc: cleanup Kubeflow namespace & NetworkPolicy
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
     cmds:
-      - "kubectl apply -k \"github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref={{.PIPELINES_VERSION}}\""
+      - kustomize build kubeflow-namespace/base | kubectl delete -f -
+    internal: true
 
-  pipelines:standalone:native-install:
-    desc: install Kubeflow Pipelines
-    deps: [pipelines:standalone:cluster-resources]
+  kf:cert-manager:setup:
+    desc: setup Cert-Manager
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
     cmds:
-      - kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v{{.CERTMANAGER_VERSION}}/cert-manager.yaml
-      - kubectl wait --for=condition=Ready pod -l app.kubernetes.io/instance=cert-manager -n cert-manager --timeout=300s
-      - "kubectl apply -k \"github.com/kubeflow/pipelines/manifests/kustomize/env/cert-manager/platform-agnostic-k8s-native?ref={{.PIPELINES_VERSION}}\""
-
-  pipelines:standalone:uninstall:
-    desc: uninstall Kubeflow Pipelines
-    cmds:
-      - cmd: "kubectl delete -k \"github.com/kubeflow/pipelines/manifests/kustomize/env/cert-manager/platform-agnostic-k8s-native?ref={{.PIPELINES_VERSION}}\""
-        ignore_error: true
-      - cmd: "kubectl delete -k \"github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic?ref={{.PIPELINES_VERSION}}\""
-        ignore_error: true
-      - cmd: kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download/v{{.CERTMANAGER_VERSION}}/cert-manager.yaml
-        ignore_error: true
-
-  pipelines:all:
-    desc: full Kubeflow Pipelines install
-    cmds:
-      - task: pipelines:standalone:install
-
-  pipelines:clean:
-    desc: cleanup Kubeflow Pipelines install
-    cmds:
-      - task: pipelines:standalone:uninstall
-      - "kubectl delete -k \"github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref={{.PIPELINES_VERSION}}\""
-
-
-  #------------------------------
-  # Spark Operator tasks
-  # https://www.kubeflow.org/docs/components/spark-operator/getting-started/
-  #------------------------------
-  spark:repo:install:
-    desc: adds Spark Operator helm repo
-    cmds:
-      - helm repo add spark-operator https://kubeflow.github.io/spark-operator
-      - helm repo update spark-operator
-
-  spark:repo:list:
-    desc: list available Spark Operator releases
-    deps: [spark:repo:install]
-    cmds:
-      - helm search repo spark-operator/spark-operator -l | head -10
-
-  spark:install:
-    desc: install Spark Operator
-    deps: [spark:repo:install]
-    cmds:
-      - |
-        helm install {{.SPARK_OPERATOR_RELEASE_NAME}} spark-operator/spark-operator \
-          --create-namespace \
-          --namespace {{.SPARK_OPERATOR_NAMESPACE}} \
-          --version {{.SPARK_OPERATOR_VERSION}} \
-          --set webhook.enable=true
-
-  spark:uninstall:
-    desc: uninstall Spark Operator
-    cmds:
-      - helm uninstall {{.SPARK_OPERATOR_RELEASE_NAME}} -n {{.SPARK_OPERATOR_NAMESPACE}} --keep-history
-
-  spark:all:
-    desc: full Spark Operator install
-    cmds:
-      - task: spark:repo:install
-      - task: spark:install
-
-  spark:clean:
-    desc: cleanup Spark Operator install
-    cmds:
-      - helm uninstall {{.SPARK_OPERATOR_RELEASE_NAME}} -n {{.SPARK_OPERATOR_NAMESPACE}}
-
-
-  #------------------------------
-  # Trainer tasks
-  # https://www.kubeflow.org/docs/components/trainer/operator-guides/installation/
-  #------------------------------
-  trainer:install:
-    desc: install Kubeflow Trainer
-    cmds:
-      - |
-        helm install {{.TRAINER_RELEASE_NAME}} oci://ghcr.io/kubeflow/charts/kubeflow-trainer \
-          --create-namespace \
-          --namespace {{.TRAINER_NAMESPACE}} \
-          --version {{.TRAINER_VERSION}}
+      - kustomize build cert-manager/base | kubectl apply -f -
+      - kubectl wait --for=condition=Ready pod -l 'app=webhook' --timeout=180s -n cert-manager
+      # deleting orphaned webhooks
+      - kubectl delete validatingwebhookconfigurations.admissionregistration.k8s.io cert-manager-webhook --ignore-not-found
+      - kubectl delete mutatingwebhookconfigurations.admissionregistration.k8s.io cert-manager-webhook --ignore-not-found
+      - kustomize build cert-manager/overlays/kubeflow | kubectl apply -f -
+      - kubectl wait --for=condition=Ready pod -l 'app.kubernetes.io/instance=cert-manager' --timeout=180s -n cert-manager
+      - kubectl wait --for=jsonpath='{.endpoints[0].targetRef.kind}'=Pod endpointslice -l 'app in (cert-manager,webhook)' --timeout=180s -n cert-manager
     status:
-      - kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=controller,app.kuberenetes.io/instance=kubeflow-trainer -n {{.TRAINER_NAMESPACE}} --timeout=300s
-      - kubectl wait --for=condition=Ready pod -l app.kubernetes.io/component=manager,app.kubernetes.io/instance=kubeflow-trainer -n {{.TRAINER_NAMESPACE}} --timeout=300s
+      - kubectl wait --for=condition=Ready pod -l 'app.kubernetes.io/instance=cert-manager' --timeout=180s -n cert-manager
+      - kubectl wait --for=jsonpath='{.endpoints[0].targetRef.kind}'=Pod endpointslice -l 'app in (cert-manager,webhook)' --timeout=180s -n cert-manager
+    internal: true
 
-  trainer:uninstall:
-    desc: uninstall Kubeflow Trainer
+  kf:cert-manager:delete:
+    desc: delete Cert-Manager
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
     cmds:
-      - helm uninstall {{.TRAINER_RELEASE_NAME}} -n {{.TRAINER_NAMESPACE}}
+      - kustomize build cert-manager/overlays/kubeflow | kubectl delete -f -
+      - kustomize build cert-manager/base | kubectl delete -f -
+    ignore_error: true
+    status:
+      - "! kubectl get ns cert-manager"
+    internal: true
 
-  trainer:runtime:install:
-    desc: install Kubeflow Trainer runtime
-    deps: [trainer:install]
+  kf:istio-cni:setup:
+    desc: setup Istio-CNI with overlays for GKE
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
     cmds:
-      - "kubectl apply --server-side -k \"https://github.com/kubeflow/trainer.git/manifests/overlays/runtimes?ref=v{{.TRAINER_VERSION}}\""
+      - kustomize build istio/istio-crds/base | kubectl apply -f -
+      - kustomize build istio/istio-namespace/base | kubectl apply -f -
+      - kustomize build istio/istio-install/overlays/gke | kubectl apply -f -
+    internal: true
 
-  trainer:runtime:uninstall:
-    desc: uninstall Kubeflow Trainer runtime
+  kf:istio-cni:delete:
+    desc: delete Istio-CNI with overlays for GKE
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
     cmds:
-      - "kubectl delete -k \"https://github.com/kubeflow/trainer.git/manifests/overlays/runtimes?ref=v{{.TRAINER_VERSION}}\""
+      - kustomize build istio/istio-install/overlays/gke | kubectl delete -f -
+      - kustomize build istio/istio-namespace/base | kubectl delete -f -
+      - kustomize build istio/istio-crds/base | kubectl delete -f -
+    internal: true
 
-  trainer:all:
-    desc: full Kubeflow Trainer install
+  kf:oauth2-proxy:setup:
+    desc: setup oauth2-proxy 
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
     cmds:
-      - task: trainer:install
-      - task: trainer:runtime:install
+      - kustomize build oauth2-proxy/overlays/m2m-dex-only/ | kubectl apply -f -
+      - kubectl wait --for=condition=Ready pod -l 'app.kubernetes.io/name=oauth2-proxy' --timeout=180s -n oauth2-proxy
+    status:
+      - kubectl wait --for=condition=Ready pod -l 'app.kubernetes.io/name=oauth2-proxy' --timeout=180s -n oauth2-proxy
+    internal: true
 
-  trainer:clean:
-    desc: cleanup Kubeflow Trainer install
+  kf:oauth2-proxy:delete:
+    desc: delete oauth2-proxy 
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
     cmds:
-      - task: trainer:runtime:uninstall
-      - task: trainer:uninstall
+      - kustomize build oauth2-proxy/overlays/m2m-dex-only/ | kubectl delete -f -
+    status:
+      - "! kubectl get ns oauth2-proxy"
+    internal: true
 
+
+  kf:istio-resources:setup:
+    desc: setup Kubeflow gateway and ClusterRole
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
+    cmds:
+      - kustomize build istio/kubeflow-istio-resources/base | kubectl apply -f -
+    internal: true
+
+  kf:istio-resources:delete:
+    desc: setup Kubeflow gateway and ClusterRole
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
+    cmds:
+      - kustomize build istio/kubeflow-istio-resources/base | kubectl delete -f -
+    internal: true
+
+  kf:profiles-controller:setup:
+    desc: setup Profiles controller
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build profiles/pss | kubectl apply -f -
+      - kubectl -n kubeflow rollout status deployment/profiles-deployment --timeout 180s
+      - kubectl -n kubeflow wait --for=condition=Ready pods -l kustomize.component=profiles --timeout 180s
+    status:
+      - kubectl -n kubeflow wait --for=condition=Ready pods -l kustomize.component=profiles --timeout 180s
+    internal: true
+
+  kf:profiles-controller:delete:
+    desc: setup Profiles controller
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build profiles/pss | kubectl delete -f -
+    ignore_error: true
+    internal: true
+
+  kf:kubeflow-roles:setup:
+    desc: setup Kubeflow roles (multi-tenancy)
+    deps: [kf:profiles-controller:setup]
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
+    cmds:
+      - kustomize build kubeflow-roles/base | kubectl apply -f -
+    internal: true
+
+  kf:kubeflow-roles:delete:
+    desc: delete Kubeflow roles
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
+    cmds:
+      - kustomize build kubeflow-roles/base | kubectl delete -f -
+    ignore_error: true
+    internal: true
+
+  kf:dex:setup:
+    desc: setup Dex (OIDC IdP)
+    deps: [kf:oauth2-proxy:setup]
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
+    cmds:
+      - kustomize build dex/overlays/oauth2-proxy | kubectl apply -f -
+      - kubectl wait --for=condition=Ready pods --all --timeout=180s -n auth 
+    status:
+      - kubectl wait --for=condition=Ready pods --all --timeout=180s -n auth 
+    internal: true
+
+  kf:dex:delete:
+    desc: delete Dex (OIDC IdP)
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
+    cmds:
+      - kustomize build dex/overlays/oauth2-proxy | kubectl delete -f -
+    status:
+      - "! kubectl get ns auth"
+    internal: true
+
+
+  #-----------------------------------------------------
+  # from Kubeflow manifests GitHub - Applications
+  #-----------------------------------------------------
+  kf:central-dashboard:setup:
+    desc: setup Central Dashboard
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build centraldashboard/upstream/overlays/kserve | kubectl apply -f -
+      - kubectl wait --for=condition=Ready pods --all --timeout=180s -n kubeflow
+    status:
+      - kubectl wait --for=condition=Ready pods --all --timeout=180s -n kubeflow
+    internal: true
+
+  kf:central-dashboard:delete:
+    desc: delete Central Dashboard
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build centraldashboard/upstream/overlays/kserve | kubectl delete -f -
+    internal: true
+
+  kf:admission-webhook:setup:
+    desc: setup Admission Webhook for PodDefaults
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build admission-webhook/upstream/overlays/cert-manager | kubectl apply -f -
+    internal: true
+
+  kf:admission-webhook:delete:
+    desc: delete Admission Webhook for PodDefaults
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build admission-webhook/upstream/overlays/cert-manager | kubectl delete -f -
+    internal: true
+
+  kf:knative-eventing:setup:
+    desc: setup Knative Eventing
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
+    cmds:
+      - kustomize build knative/knative-eventing/base | kubectl apply -f -
+    internal: true
+
+  kf:knative-eventing:delete:
+    desc: delete Knative Eventing
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
+    cmds:
+      - kustomize build knative/knative-eventing/base | kubectl delete -f -
+    internal: true
+
+  # note: may have to run this a couple of times
+  kf:kserve:setup:
+    desc: setup KServe
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build kserve/kserve | kubectl apply --server-side --force-conflicts -f -
+      - kubectl wait --for=condition=Ready certificate/serving-cert -n kubeflow --timeout=60s
+      - kubectl get secret kserve-webhook-server-cert -n kubeflow -o name
+      - sleep 5
+      - kubectl wait --for condition=established --timeout=30s crd/clusterservingruntimes.serving.kserve.io
+      - kustomize build kserve/models-web-app/overlays/kubeflow | kubectl apply --server-side --force-conflicts -f -
+      - kubectl wait --for=condition=Available deployment/kserve-controller-manager -n kubeflow --timeout=30s
+      - kubectl wait --for=condition=Available deployment/kserve-models-web-app -n kubeflow --timeout=30s
+      - kubectl get crd | grep -E 'inferenceservice|servingruntimes'
+    ignore_error: true
+    internal: true
+
+  kf:kserve:delete:
+    desc: delete KServe
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build kserve/models-web-app/overlays/kubeflow | kubectl delete -f -
+      - sleep 5
+      - kustomize build kserve/kserve | kubectl delete -f -
+    ignore_error: true
+    internal: true
+
+  # note: may have to run this a couple of times
+  kf:pipelines:native:setup:
+    desc: setup Kubeflow Pipelines in K8s-native API mode
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build pipeline/upstream/env/cert-manager/platform-agnostic-multi-user-k8s-native | kubectl apply -f -
+    ignore_error: true
+    internal: true
+
+  kf:pipelines:native:delete:
+    desc: delete Kubeflow Pipelines in K8s-native API mode
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build pipeline/upstream/env/cert-manager/platform-agnostic-multi-user-k8s-native | kubectl delete -f -
+    ignore_error: true
+    internal: true
+
+  kf:katib:setup:
+    desc: setup Katib
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build katib/upstream/installs/katib-with-kubeflow | kubectl apply -f -
+      - kubectl wait --for=condition=Available deployment/katib-controller -n kubeflow --timeout=300s
+      - kubectl wait --for=condition=Available deployment/katib-mysql -n kubeflow --timeout=300s
+    status:
+      - kubectl wait --for=condition=Available deployment/katib-controller -n kubeflow --timeout=300s
+      - kubectl wait --for=condition=Available deployment/katib-mysql -n kubeflow --timeout=300s
+    internal: true
+
+  kf:katib:delete:
+    desc: delete Katib
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build katib/upstream/installs/katib-with-kubeflow | kubectl delete -f -
+    internal: true
+
+  kf:notebooks-v1:setup:
+    desc: setup Notebooks 1.0
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build jupyter/notebook-controller/upstream/overlays/kubeflow | kubectl apply -f -
+      - kustomize build jupyter/jupyter-web-app/upstream/overlays/istio | kubectl apply -f -
+    internal: true
+
+  kf:notebooks-v1:delete:
+    desc: delete Notebooks 1.0
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build jupyter/jupyter-web-app/upstream/overlays/istio | kubectl delete -f -
+      - kustomize build jupyter/notebook-controller/upstream/overlays/kubeflow | kubectl delete -f -
+    internal: true
+
+  kf:pvcviewer-controller:setup:
+    desc: setup PVC Viewer Controller
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build pvcviewer-controller/upstream/base | kubectl apply -f -
+    internal: true
+
+  kf:pvcviewer-controller:delete:
+    desc: delete PVC Viewer Controller
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build pvcviewer-controller/upstream/base | kubectl delete -f -
+    internal: true
+
+  kf:volumes-web-app:setup:
+    desc: setup Volumes Web Application
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build volumes-web-app/upstream/overlays/istio | kubectl apply -f -
+      - kubectl wait --for=condition=Available deployment/volumes-web-app-deployment -n kubeflow --timeout=180s
+    status:
+      - kubectl wait --for=condition=Available deployment/volumes-web-app-deployment -n kubeflow --timeout=180s
+    internal: true
+
+  kf:volumes-web-app:delete:
+    desc: delete Volumes Web Application
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build volumes-web-app/upstream/overlays/istio | kubectl delete -f -
+    internal: true
+
+  kf:tensorboard:setup:
+    desc: setup Tensorboard
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build tensorboard/tensorboards-web-app/upstream/overlays/istio | kubectl apply -f -
+      - kustomize build tensorboard/tensorboard-controller/upstream/overlays/kubeflow | kubectl apply -f -
+    internal: true
+
+  kf:tensorboard:delete:
+    desc: delete Tensorboard
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build tensorboard/tensorboard-controller/upstream/overlays/kubeflow | kubectl delete -f -
+      - kustomize build tensorboard/tensorboards-web-app/upstream/overlays/istio | kubectl delete -f -
+    internal: true
+
+  # note: may have to run this a couple of times
+  kf:trainer-v2:setup:
+    desc: setup Trainer
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build trainer/upstream/base/crds | kubectl apply --server-side --force-conflicts -f -
+      - kubectl wait --for condition=established crd/trainjobs.trainer.kubeflow.org --timeout=60s
+      - sleep 5
+      - kustomize build trainer/overlays | kubectl apply --server-side --force-conflicts -f -
+      - kubectl wait --for=condition=Available deployment/kubeflow-trainer-controller-manager -n kubeflow-system --timeout=240s
+      - kubectl get crd jobsets.jobset.x-k8s.io
+      - kubectl wait --for=condition=Available deployment/jobset-controller-manager -n kubeflow-system --timeout=120s
+      - sleep 5
+      - kustomize build trainer/upstream/overlays/runtimes | kubectl apply --server-side --force-conflicts -f -
+      - kubectl apply -f trainer/upstream/overlays/kubeflow-platform/kubeflow-trainer-roles.yaml
+      - sleep 5
+      - kubectl get deployment -n kubeflow-system kubeflow-trainer-controller-manager
+      - kubectl get pods -n kubeflow-system -l app.kubernetes.io/name=trainer
+      - kubectl get crd | grep -E 'trainer.kubeflow.org'
+      - kubectl get clustertrainingruntimes
+      - sleep 5
+      - kubectl rollout restart deployment/jobset-controller-manager -n kubeflow-system
+      - kubectl rollout status deployment/jobset-controller-manager -n kubeflow-system --timeout=120s
+      - kubectl wait --for=condition=Available deployment/jobset-controller-manager -n kubeflow-system --timeout=120s
+    internal: true
+
+  kf:trainer-v2:delete:
+    desc: delete Trainer
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kubectl delete -f trainer/upstream/overlays/kubeflow-platform/kubeflow-trainer-roles.yaml
+      - kustomize build trainer/upstream/overlays/runtimes | kubectl delete -f -
+      - kustomize build trainer/overlays | kubectl delete -f -
+      - kustomize build trainer/upstream/base/crds | kubectl delete -f -
+    ignore_error: true
+    internal: true
+
+  kf:spark-operator:setup:
+    desc: setup Spark Operator
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build spark/spark-operator/overlays/kubeflow | kubectl -n kubeflow apply --server-side --force-conflicts -f -
+      - kubectl -n kubeflow wait --for=condition=available --timeout=180s deploy/spark-operator-controller
+      - kubectl -n kubeflow wait --for=condition=available --timeout=180s deploy/spark-operator-webhook
+      - kubectl -n kubeflow wait --for=condition=Ready pod -l app.kubernetes.io/name=spark-operator,app.kubernetes.io/component=webhook --timeout=180s
+      - "kubectl -n kubeflow wait --for=jsonpath='{.endpoints[0].targetRef.kind}'=Pod $(kubectl get endpointslice -n kubeflow -l kubernetes.io/service-name=spark-operator-webhook-svc -o name) --timeout=180s"
+    status:
+      - kubectl -n kubeflow wait --for=condition=Ready pod -l app.kubernetes.io/name=spark-operator,app.kubernetes.io/component=webhook --timeout=180s
+      - "kubectl -n kubeflow wait --for=jsonpath='{.endpoints[0].targetRef.kind}'=Pod $(kubectl get endpointslice -n kubeflow -l kubernetes.io/service-name=spark-operator-webhook-svc -o name) --timeout=180s"
+    internal: true
+
+  kf:spark-operator:delete:
+    desc: delete Spark Operator
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build spark/spark-operator/overlays/kubeflow | kubectl -n kubeflow delete -f -
+    internal: true
+
+  kf:user-namespaces:setup:
+    desc: setup namespace for default user
+    deps: [kf:profiles-controller:setup]
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
+    cmds:
+      - kustomize build user-namespace/base | kubectl apply -f -
+      - sleep 30
+      - kubectl -n {{.KUBEFLOW_PROFILE}} get pods,configmaps,secrets
+      - kubectl label namespace {{.KUBEFLOW_PROFILE}} pod-security.kubernetes.io/enforce=baseline --overwrite
+    status:
+      - kubectl get profile kubeflow-user-example-com
+    internal: true
+
+  kf:user-namespaces:delete:
+    desc: delete namespace for default user
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
+    cmds:
+      - kustomize build user-namespace/base | kubectl delete -f -
+    internal: true
+
+
+  #-----------------------------------------------------
+  # Main
+  #-----------------------------------------------------
+  kf:port-forward:
+    desc: port-forward Kubeflow web UI
+    cmds:
+      - kubectl port-forward svc/istio-ingressgateway -n istio-system 8080:80
+
+  kf:common:setup:
+    desc: setup Kubeflow common apps (Prerequisites)
+    deps: [manifest:download+untar]
+    cmds:
+      - task: kf:namespaces:setup
+      - task: kf:cert-manager:setup
+      - task: kf:istio-cni:setup
+      - task: kf:oauth2-proxy:setup
+      - task: kf:istio-resources:setup
+      - task: kf:profiles-controller:setup
+      - task: kf:kubeflow-roles:setup
+      - task: kf:dex:setup
+
+  kf:common:delete:
+    desc: delete Kubeflow common apps
+    cmds:
+      - task: kf:dex:delete
+      - task: kf:kubeflow-roles:delete
+      - task: kf:profiles-controller:delete
+      - task: kf:istio-resources:delete
+      - task: kf:oauth2-proxy:delete
+      - task: kf:istio-cni:delete
+      - task: kf:cert-manager:delete
+      - task: kf:namespaces:delete
+
+  kf:applications:minimal:setup:
+    desc: setup Kubeflow applications (Minimal)
+    cmds:
+      - task: kf:central-dashboard:setup
+      - task: kf:admission-webhook:setup
+      - task: kf:knative-eventing:setup
+      - task: kf:kserve:setup
+      - task: kf:pipelines:native:setup
+      - task: kf:notebooks-v1:setup
+      - task: kf:pvcviewer-controller:setup
+      - task: kf:volumes-web-app:setup
+    internal: true
+
+  kf:applications:minimal:delete:
+    desc: delete Kubeflow applications
+    cmds:
+      - task: kf:volumes-web-app:delete
+      - task: kf:pvcviewer-controller:delete
+      - task: kf:notebooks-v1:delete
+      - task: kf:pipelines:native:delete
+      - task: kf:kserve:delete
+      - task: kf:knative-eventing:delete
+      - task: kf:admission-webhook:delete
+      - task: kf:central-dashboard:delete
+    internal: true
+
+  kf:applications:full:setup:
+    desc: setup Kubeflow applications (Full)
+    cmds:
+      - task: kf:central-dashboard:setup
+      - task: kf:admission-webhook:setup
+      - task: kf:knative-eventing:setup
+      - task: kf:kserve:setup
+      - task: kf:pipelines:native:setup
+      - task: kf:katib:setup
+      - task: kf:notebooks-v1:setup
+      - task: kf:pvcviewer-controller:setup
+      - task: kf:volumes-web-app:setup
+      - task: kf:tensorboard:setup
+      - task: kf:trainer-v2:setup
+      - task: kf:spark-operator:setup
+    internal: true
+
+  kf:applications:full:delete:
+    desc: delete Kubeflow applications
+    cmds:
+      - task: kf:spark-operator:delete
+      - task: kf:trainer-v2:delete
+      - task: kf:tensorboard:delete
+      - task: kf:volumes-web-app:delete
+      - task: kf:pvcviewer-controller:delete
+      - task: kf:notebooks-v1:delete
+      - task: kf:katib:delete
+      - task: kf:pipelines:native:delete
+      - task: kf:kserve:delete
+      - task: kf:knative-eventing:delete
+      - task: kf:admission-webhook:delete
+      - task: kf:central-dashboard:delete
+    internal: true
+
+  all:min:
+    desc: Kubeflow install (Minimal)
+    cmds:
+      - task: kf:common:setup
+      - sleep 5
+      - task: kf:applications:minimal:setup
+      - task: kf:user-namespaces:setup
+
+  clean:min:
+    desc: cleanup minimal Kubeflow install
+    cmds:
+      - task: kf:user-namespaces:delete
+      - task: kf:applications:minimal:delete
+      - sleep 5
+      - task: kf:common:delete
+
+  all:
+    desc: Kubeflow install (Full)
+    cmds:
+      - task: kf:common:setup
+      - sleep 5
+      - task: kf:applications:full:setup
+      - task: kf:user-namespaces:setup
+
+  clean:
+    desc: cleanup full Kubeflow install
+    cmds:
+      - task: kf:user-namespaces:delete
+      - task: kf:applications:full:delete
+      - sleep 5
+      - task: kf:common:delete
