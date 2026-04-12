@@ -123,7 +123,6 @@ tasks:
       - "! kubectl get ns oauth2-proxy"
     internal: true
 
-
   kf:istio-resources:setup:
     desc: setup Kubeflow gateway and ClusterRole
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
@@ -202,9 +201,9 @@ tasks:
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
     cmds:
       - kustomize build centraldashboard/upstream/overlays/kserve | kubectl apply -f -
-      - kubectl wait --for=condition=Ready pods --all --timeout=180s -n kubeflow
+      - kubectl -n kubeflow wait --for=condition=Ready pod -l app.kubernetes.io/component=centraldashboard,app.kubernetes.io/name=centraldashboard,app=centraldashboard --timeout=60s
     status:
-      - kubectl wait --for=condition=Ready pods --all --timeout=180s -n kubeflow
+      - kubectl -n kubeflow wait --for=condition=Ready pod -l app.kubernetes.io/component=centraldashboard,app.kubernetes.io/name=centraldashboard,app=centraldashboard --timeout=60s
     internal: true
 
   kf:central-dashboard:delete:
@@ -450,7 +449,7 @@ tasks:
   #-----------------------------------------------------
   # Main
   #-----------------------------------------------------
-  kf:port-forward:
+  kf:port-forward:ui:
     desc: port-forward Kubeflow web UI
     cmds:
       - kubectl port-forward svc/istio-ingressgateway -n istio-system 8080:80
@@ -547,6 +546,8 @@ tasks:
       - sleep 5
       - task: kf:applications:minimal:setup
       - task: kf:user-namespaces:setup
+      - |
+        echo "run: \"task kf:port-forward:ui\" to get access to dashboard"
 
   clean:min:
     desc: cleanup minimal Kubeflow install
@@ -563,6 +564,8 @@ tasks:
       - sleep 5
       - task: kf:applications:full:setup
       - task: kf:user-namespaces:setup
+      - |
+        echo "run: \"task kf:port-forward:ui\" to get access to dashboard"
 
   clean:
     desc: cleanup full Kubeflow install
