@@ -62,17 +62,13 @@ tasks:
     desc: setup Cert-Manager
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
     cmds:
-      - kustomize build cert-manager/base | kubectl apply -f -
-      - kubectl wait --for=condition=Ready pod -l 'app=webhook' --timeout=180s -n cert-manager
-      # deleting orphaned webhooks
-      - kubectl delete validatingwebhookconfigurations.admissionregistration.k8s.io cert-manager-webhook --ignore-not-found
-      - kubectl delete mutatingwebhookconfigurations.admissionregistration.k8s.io cert-manager-webhook --ignore-not-found
       - kustomize build cert-manager/overlays/kubeflow | kubectl apply -f -
-      - kubectl wait --for=condition=Ready pod -l 'app.kubernetes.io/instance=cert-manager' --timeout=180s -n cert-manager
-      - kubectl wait --for=jsonpath='{.endpoints[0].targetRef.kind}'=Pod endpointslice -l 'app in (cert-manager,webhook)' --timeout=180s -n cert-manager
+      - kubectl wait --for=condition=Ready pod -l 'app.kubernetes.io/component=webhook,app.kubernetes.io/instance=cert-manager' --timeout=180s -n cert-manager
+      - kubectl wait --for=condition=Ready pod -l 'app.kubernetes.io/component=controller,app.kubernetes.io/instance=cert-manager' --timeout=180s -n cert-manager
+      - kubectl wait --for=condition=Ready pod -l 'app.kubernetes.io/component=cainjector,app.kubernetes.io/instance=cert-manager' --timeout=180s -n cert-manager
     status:
-      - kubectl wait --for=condition=Ready pod -l 'app.kubernetes.io/instance=cert-manager' --timeout=180s -n cert-manager
       - kubectl wait --for=jsonpath='{.endpoints[0].targetRef.kind}'=Pod endpointslice -l 'app in (cert-manager,webhook)' --timeout=180s -n cert-manager
+    ignore_error: true
     internal: true
 
   kf:cert-manager:delete:
@@ -80,7 +76,9 @@ tasks:
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
     cmds:
       - kustomize build cert-manager/overlays/kubeflow | kubectl delete -f -
-      - kustomize build cert-manager/base | kubectl delete -f -
+      # deleting orphaned webhooks
+      - kubectl delete validatingwebhookconfigurations.admissionregistration.k8s.io cert-manager-webhook --ignore-not-found
+      - kubectl delete mutatingwebhookconfigurations.admissionregistration.k8s.io cert-manager-webhook --ignore-not-found
     ignore_error: true
     status:
       - "! kubectl get ns cert-manager"
@@ -178,9 +176,9 @@ tasks:
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/common/
     cmds:
       - kustomize build dex/overlays/oauth2-proxy | kubectl apply -f -
-      - kubectl wait --for=condition=Ready pods --all --timeout=180s -n auth 
+      - kubectl -n auth wait --for=condition=Ready pod -l app=dex --timeout=60s
     status:
-      - kubectl wait --for=condition=Ready pods --all --timeout=180s -n auth 
+      - kubectl -n auth wait --for=condition=Ready pod -l app=dex --timeout=60s
     internal: true
 
   kf:dex:delete:
@@ -241,7 +239,6 @@ tasks:
       - kustomize build knative/knative-eventing/base | kubectl delete -f -
     internal: true
 
-  # note: may have to run this a couple of times
   kf:kserve:setup:
     desc: setup KServe
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
@@ -268,7 +265,6 @@ tasks:
     ignore_error: true
     internal: true
 
-  # note: may have to run this a couple of times
   kf:pipelines:native:setup:
     desc: setup Kubeflow Pipelines in K8s-native API mode
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
@@ -367,7 +363,6 @@ tasks:
       - kustomize build tensorboard/tensorboards-web-app/upstream/overlays/istio | kubectl delete -f -
     internal: true
 
-  # note: may have to run this a couple of times
   kf:trainer-v2:setup:
     desc: setup Trainer
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
@@ -466,6 +461,7 @@ tasks:
       - task: kf:profiles-controller:setup
       - task: kf:kubeflow-roles:setup
       - task: kf:dex:setup
+    internal: true
 
   kf:common:delete:
     desc: delete Kubeflow common apps
@@ -478,6 +474,7 @@ tasks:
       - task: kf:istio-cni:delete
       - task: kf:cert-manager:delete
       - task: kf:namespaces:delete
+    internal: true
 
   kf:applications:minimal:setup:
     desc: setup Kubeflow applications (Minimal)

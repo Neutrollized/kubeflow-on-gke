@@ -34,13 +34,13 @@ sortOptions:
 
 resources:
 # Cert-Manager
-- ../common/cert-manager/overlays/kubeflow
+- manifests-26.03/common/cert-manager/overlays/kubeflow
 # Istio
-- ../common/istio/istio-crds/base
-- ../common/istio/istio-namespace/base
+- manifests-26.03/common/istio/istio-crds/base
+- manifests-26.03/common/istio/istio-namespace/base
 #- ../common/istio/istio-install/overlays/oauth2-proxy
 # NOTE: For Google Kubernetes Engine (GKE), use:
-- ../common/istio/istio-install/overlays/gke
+- manifests-26.03/common/istio/istio-install/overlays/gke
 # NOTE: For Istio Ambient Mode (sidecar-free), use one of:
 # - ../common/istio/istio-install/overlays/ambient-oauth2-proxy
 # - ../common/istio/istio-install/overlays/ambient-oauth2-proxy-gke
@@ -48,56 +48,57 @@ resources:
 # For details, see [Istio CNI Prerequisites](https://istio.io/latest/docs/setup/additional-setup/cni/#prerequisites)
 # Oauth2-proxy
 # NOTE: only uncomment ONE of the following overlays, depending on your cluster type
-- ../common/oauth2-proxy/overlays/m2m-dex-only       # for all clusters
+- manifests-26.03/common/oauth2-proxy/overlays/m2m-dex-only       # for all clusters
 # - ../common/oauth2-proxy/overlays/m2m-dex-and-kind  # for KIND clusters (allows K8S JWTs for gateway auth)
 # - ../common/oauth2-proxy/overlays/m2m-dex-and-eks   # for EKS clusters (NOTE: requires you to configure issuer, see overlay)
 # Dex
-- ../common/dex/overlays/oauth2-proxy
+- manifests-26.03/common/dex/overlays/oauth2-proxy
 # KNative
-- ../common/knative/knative-serving/overlays/gateways
+- manifests-26.03/common/knative/knative-serving/overlays/gateways
 # Uncomment the following line if `knative-eventing` is required
-- ../common/knative/knative-eventing/base
-- ../common/istio/cluster-local-gateway/base
+- manifests-26.03/common/knative/knative-eventing/base
+#- manifests-26.03/common/istio/cluster-local-gateway/base
 # Kubeflow namespace
-- ../common/kubeflow-namespace/base
+- manifests-26.03/common/kubeflow-namespace/base
 # Kubeflow Roles
-- ../common/kubeflow-roles/base
+- manifests-26.03/common/kubeflow-roles/base
 # Kubeflow Istio Resources
-- ../common/istio/kubeflow-istio-resources/base
+- manifests-26.03/common/istio/kubeflow-istio-resources/base
 # Kubeflow Pipelines (SeaweedFS as default S3 storage)
-- ../applications/pipeline/overlays  # Pipeline definitions stored in the database
+- manifests-26.03/applications/pipeline/overlays  # Pipeline definitions stored in the database
 # - ../applications/pipeline/upstream/env/cert-manager/platform-agnostic-multi-user-k8s-native # Pipeline Definitions Stored as Kubernetes Resources
 # Katib
-- ../applications/katib/upstream/installs/katib-with-kubeflow
+- manifests-26.03/applications/katib/upstream/installs/katib-with-kubeflow
 # Central Dashboard
-- ../applications/centraldashboard/overlays/oauth2-proxy
+#- manifests-26.03/applications/centraldashboard/overlays/oauth2-proxy
+- manifests-26.03/applications/centraldashboard/upstream/overlays/kserve
 # Admission Webhook
-- ../applications/admission-webhook/upstream/overlays/cert-manager
+- manifests-26.03/applications/admission-webhook/upstream/overlays/cert-manager
 # Jupyter Web App
-- ../applications/jupyter/jupyter-web-app/upstream/overlays/istio
+- manifests-26.03/applications/jupyter/jupyter-web-app/upstream/overlays/istio
 # Notebook Controller
-- ../applications/jupyter/notebook-controller/upstream/overlays/kubeflow
+- manifests-26.03/applications/jupyter/notebook-controller/upstream/overlays/kubeflow
 # Profiles + KFAM with PSS (Pod Security Standards)
-- ../applications/profiles/pss  # TODO MUST BE UPSTREAMED
+- manifests-26.03/applications/profiles/pss  # TODO MUST BE UPSTREAMED
 # PVC Viewer
-- ../applications/pvcviewer-controller/upstream/base
+- manifests-26.03/applications/pvcviewer-controller/upstream/base
 # Volumes Web App
-- ../applications/volumes-web-app/upstream/overlays/istio
+- manifests-26.03/applications/volumes-web-app/upstream/overlays/istio
 # Tensorboards Controller
-- ../applications/tensorboard/tensorboard-controller/upstream/overlays/kubeflow
+- manifests-26.03/applications/tensorboard/tensorboard-controller/upstream/overlays/kubeflow
 # Tensorboard Web App
-- ../applications/tensorboard/tensorboards-web-app/upstream/overlays/istio
+- manifests-26.03/applications/tensorboard/tensorboards-web-app/upstream/overlays/istio
 # Training Operator (v1)
 # - ../applications/training-operator/upstream/overlays/kubeflow
 # Trainer (Training Operator v2)
-- ../applications/trainer/overlays
+- manifests-26.03/applications/trainer/overlays
 # User namespace
-- ../common/user-namespace/base
+- manifests-26.03/common/user-namespace/base
 # KServe
-- ../applications/kserve/kserve
-- ../applications/kserve/models-web-app/overlays/kubeflow
+- manifests-26.03/applications/kserve/kserve
+- manifests-26.03/applications/kserve/models-web-app/overlays/kubeflow
 # Spark Operator
-- ../applications/spark/spark-operator/overlays/kubeflow
+- manifests-26.03/applications/spark/spark-operator/overlays/kubeflow
 
 # Ray is an experimental integration
 # Here is the documentation for Ray: https://docs.ray.io/en/latest/
