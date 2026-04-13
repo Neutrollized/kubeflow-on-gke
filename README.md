@@ -32,12 +32,14 @@ Main tasks:
 ## Single-command Setup 
 Install details, see: [Kubeflow manifests repository](https://github.com/kubeflow/manifests). I have included a `kustomization.yaml` which can be used with the following while-loop:
 
+> [!TIP]
+> Use `task manifest:download+untar` to make getting the manifests simpler.
+
 ```sh
 while ! kustomize build . | kubectl apply --server-side --force-conflicts -f -; do echo "Retrying to apply resources"; sleep 20; done
 ```
 
 Use `task clean` to delete the single-command setup (it's difficult to do a one-shot cleanup)
-
 
 - Port-forward the Kubeflow UI:
 ```sh
@@ -46,4 +48,3 @@ kubectl port-forward svc/istio-ingressgateway -n istio-system 8080:80
 
 ## TODO
 - Kubeflow examples
-
