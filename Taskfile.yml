@@ -19,7 +19,7 @@ tasks:
 
 
   #------------------------------------
-  # download Kubeflow manifests 
+  # miscellaneous / helpers
   #------------------------------------
   manifest:download+untar:
     desc: download & untar Kubeflow release manifest
@@ -39,6 +39,13 @@ tasks:
     status:
       - test ! -d manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}
       - test ! -f manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}.tar.gz
+
+  manifest:kustomize:fix:
+    desc: run 'kustomize edit fix' (recursive)
+    deps: [manifest:download+untar]
+    dir: ./
+    cmds:
+      - find . -name "kustomization.yaml" -execdir kustomize edit fix \;
 
 
   #-----------------------------------------------------
@@ -265,16 +272,88 @@ tasks:
     ignore_error: true
     internal: true
 
-  kf:pipelines:native:setup:
-    desc: setup Kubeflow Pipelines in K8s-native API mode
+  kf:pipelines:crds:setup:
+    desc: setup Kubeflow Pipelines CRDs
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
     cmds:
-      - kustomize build pipeline/upstream/env/cert-manager/platform-agnostic-multi-user-k8s-native | kubectl apply -f -
+      - kubectl apply -f pipeline/upstream/third-party/metacontroller/base/crd.yaml
+      - kubectl wait --for condition=established --timeout=30s crd/compositecontrollers.metacontroller.k8s.io
+    internal: true
+
+  kf:pipelines:crds:delete:
+    desc: delete Kubeflow Pipelines CRDs
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kubectl delete -f pipeline/upstream/third-party/metacontroller/base/crd.yaml
     ignore_error: true
     internal: true
 
+  # unused
+  kf:pipelines:v1:setup:
+    desc: setup Kubeflow Pipelines v1 (pipeline definitions stored in database)
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build pipeline/overlays | kubectl apply -f -
+      - sleep 60
+      - kubectl wait --for=condition=Available deployment/ml-pipeline -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-ui -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-persistenceagent -n kubeflow --timeout=30s
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-scheduledworkflow -n kubeflow --timeout=30s
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-viewer-crd -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/cache-server -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/metadata-writer -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/seaweedfs -n kubeflow --timeout=30s
+      - kubectl wait --for=condition=Available deployment/mysql -n kubeflow --timeout=30s
+    status:
+      - kubectl wait --for=condition=Available deployment/ml-pipeline -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-ui -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-persistenceagent -n kubeflow --timeout=30s
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-scheduledworkflow -n kubeflow --timeout=30s
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-viewer-crd -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/cache-server -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/metadata-writer -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/seaweedfs -n kubeflow --timeout=30s
+      - kubectl wait --for=condition=Available deployment/mysql -n kubeflow --timeout=30s
+    internal: true
+
+  # unused
+  kf:pipelines:v1:delete:
+    desc: delete Kubeflow Pipelines v1 (pipeline definitions stored in database)
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build pipeline/overlays | kubectl delete -f -
+    ignore_error: true
+    internal: true
+
+  kf:pipelines:native:setup:
+    desc: setup Kubeflow Pipelines v2 in K8s-native API mode (pipeline definitions as k8s resources)
+    deps: [kf:pipelines:crds:setup]
+    dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
+    cmds:
+      - kustomize build pipeline/upstream/env/cert-manager/platform-agnostic-multi-user-k8s-native | kubectl apply -f -
+      - kubectl wait --for=condition=Available deployment/ml-pipeline -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-ui -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-persistenceagent -n kubeflow --timeout=30s
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-scheduledworkflow -n kubeflow --timeout=30s
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-viewer-crd -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/cache-server -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/metadata-writer -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/seaweedfs -n kubeflow --timeout=30s
+      - kubectl wait --for=condition=Available deployment/mysql -n kubeflow --timeout=30s
+    status:
+      - kubectl wait --for=condition=Available deployment/ml-pipeline -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-ui -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-persistenceagent -n kubeflow --timeout=30s
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-scheduledworkflow -n kubeflow --timeout=30s
+      - kubectl wait --for=condition=Available deployment/ml-pipeline-viewer-crd -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/cache-server -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/metadata-writer -n kubeflow --timeout=30s 
+      - kubectl wait --for=condition=Available deployment/seaweedfs -n kubeflow --timeout=30s
+      - kubectl wait --for=condition=Available deployment/mysql -n kubeflow --timeout=30s
+    internal: true
+
   kf:pipelines:native:delete:
-    desc: delete Kubeflow Pipelines in K8s-native API mode
+    desc: delete Kubeflow Pipelines v2 in K8s-native API mode
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
     cmds:
       - kustomize build pipeline/upstream/env/cert-manager/platform-agnostic-multi-user-k8s-native | kubectl delete -f -
@@ -300,7 +379,7 @@ tasks:
       - kustomize build katib/upstream/installs/katib-with-kubeflow | kubectl delete -f -
     internal: true
 
-  kf:notebooks-v1:setup:
+  kf:notebooks:v1:setup:
     desc: setup Notebooks 1.0
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
     cmds:
@@ -308,7 +387,7 @@ tasks:
       - kustomize build jupyter/jupyter-web-app/upstream/overlays/istio | kubectl apply -f -
     internal: true
 
-  kf:notebooks-v1:delete:
+  kf:notebooks:v1:delete:
     desc: delete Notebooks 1.0
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
     cmds:
@@ -363,7 +442,7 @@ tasks:
       - kustomize build tensorboard/tensorboards-web-app/upstream/overlays/istio | kubectl delete -f -
     internal: true
 
-  kf:trainer-v2:setup:
+  kf:trainer:v2:setup:
     desc: setup Trainer
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
     cmds:
@@ -388,7 +467,7 @@ tasks:
       - kubectl wait --for=condition=Available deployment/jobset-controller-manager -n kubeflow-system --timeout=120s
     internal: true
 
-  kf:trainer-v2:delete:
+  kf:trainer:v2:delete:
     desc: delete Trainer
     dir: ./manifests-{{.KUBEFLOW_MANIFESTS_RELEASE}}/applications/
     cmds:
@@ -444,11 +523,6 @@ tasks:
   #-----------------------------------------------------
   # Main
   #-----------------------------------------------------
-  kf:port-forward:ui:
-    desc: port-forward Kubeflow web UI
-    cmds:
-      - kubectl port-forward svc/istio-ingressgateway -n istio-system 8080:80
-
   kf:common:setup:
     desc: setup Kubeflow common apps (Prerequisites)
     deps: [manifest:download+untar]
@@ -483,8 +557,9 @@ tasks:
       - task: kf:admission-webhook:setup
       - task: kf:knative-eventing:setup
       - task: kf:kserve:setup
+      - task: kf:pipelines:crds:setup
       - task: kf:pipelines:native:setup
-      - task: kf:notebooks-v1:setup
+      - task: kf:notebooks:v1:setup
       - task: kf:pvcviewer-controller:setup
       - task: kf:volumes-web-app:setup
     internal: true
@@ -494,8 +569,9 @@ tasks:
     cmds:
       - task: kf:volumes-web-app:delete
       - task: kf:pvcviewer-controller:delete
-      - task: kf:notebooks-v1:delete
+      - task: kf:notebooks:v1:delete
       - task: kf:pipelines:native:delete
+      - task: kf:pipelines:crds:delete
       - task: kf:kserve:delete
       - task: kf:knative-eventing:delete
       - task: kf:admission-webhook:delete
@@ -509,13 +585,14 @@ tasks:
       - task: kf:admission-webhook:setup
       - task: kf:knative-eventing:setup
       - task: kf:kserve:setup
+      - task: kf:pipelines:crds:setup
       - task: kf:pipelines:native:setup
       - task: kf:katib:setup
-      - task: kf:notebooks-v1:setup
+      - task: kf:notebooks:v1:setup
       - task: kf:pvcviewer-controller:setup
       - task: kf:volumes-web-app:setup
       - task: kf:tensorboard:setup
-      - task: kf:trainer-v2:setup
+      - task: kf:trainer:v2:setup
       - task: kf:spark-operator:setup
     internal: true
 
@@ -523,13 +600,14 @@ tasks:
     desc: delete Kubeflow applications
     cmds:
       - task: kf:spark-operator:delete
-      - task: kf:trainer-v2:delete
+      - task: kf:trainer:v2:delete
       - task: kf:tensorboard:delete
       - task: kf:volumes-web-app:delete
       - task: kf:pvcviewer-controller:delete
-      - task: kf:notebooks-v1:delete
+      - task: kf:notebooks:v1:delete
       - task: kf:katib:delete
       - task: kf:pipelines:native:delete
+      - task: kf:pipelines:crds:delete
       - task: kf:kserve:delete
       - task: kf:knative-eventing:delete
       - task: kf:admission-webhook:delete
@@ -571,3 +649,8 @@ tasks:
       - task: kf:applications:full:delete
       - sleep 5
       - task: kf:common:delete
+
+  kf:port-forward:ui:
+    desc: port-forward Kubeflow web UI
+    cmds:
+      - kubectl port-forward svc/istio-ingressgateway -n istio-system 8080:80
