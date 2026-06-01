@@ -654,3 +654,8 @@ tasks:
     desc: port-forward Kubeflow web UI
     cmds:
       - kubectl port-forward svc/istio-ingressgateway -n istio-system 8080:80
+
+  kf:port-forward:ml-pipeline:
+    desc: port-forward ML Pipeline service (for SDK to connect to programmatically)
+    cmds:
+      - kubectl port-forward svc/ml-pipeline -n kubeflow 8888:8888

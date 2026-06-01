@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 
+## [0.4.0] - 2026-06-01
+### Added
+- Task `kf:port-forward:ml-pipeline` - this needs to be run to submit jobs to. The `kf:port-forward:ui` doesn't accept jobs
+- Increased some `kubectl wait` timeout values
+- `examples/validate_auth_conn.py`
+- `examples/iris_experiment.py`
+
 ## [0.3.1] - 2026-04-16
 ### Changed
 - Increased some `kubectl wait` timeout values
