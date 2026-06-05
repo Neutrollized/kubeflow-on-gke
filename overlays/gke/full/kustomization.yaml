@@ -49,30 +49,9 @@ sortOptions:
 # Training Operator (v1)
 # - ../applications/training-operator/upstream/overlays/kubeflow
 resources:
-- manifests-26.03/common/cert-manager/overlays/kubeflow
-- manifests-26.03/common/istio/istio-crds/base
-- manifests-26.03/common/istio/istio-namespace/base
-- manifests-26.03/common/istio/istio-install/overlays/gke
-- manifests-26.03/common/oauth2-proxy/overlays/m2m-dex-only
-- manifests-26.03/common/dex/overlays/oauth2-proxy
-- manifests-26.03/common/knative/knative-serving/overlays/gateways
-- manifests-26.03/common/knative/knative-eventing/base
-- manifests-26.03/common/kubeflow-namespace/base
-- manifests-26.03/common/kubeflow-roles/base
-- manifests-26.03/common/istio/kubeflow-istio-resources/base
-- manifests-26.03/applications/pipeline/upstream/env/cert-manager/platform-agnostic-multi-user-k8s-native
-- manifests-26.03/applications/katib/upstream/installs/katib-with-kubeflow
-- manifests-26.03/applications/centraldashboard/upstream/overlays/kserve
-- manifests-26.03/applications/admission-webhook/upstream/overlays/cert-manager
-- manifests-26.03/applications/jupyter/jupyter-web-app/upstream/overlays/istio
-- manifests-26.03/applications/jupyter/notebook-controller/upstream/overlays/kubeflow
-- manifests-26.03/applications/profiles/pss
-- manifests-26.03/applications/pvcviewer-controller/upstream/base
-- manifests-26.03/applications/volumes-web-app/upstream/overlays/istio
-- manifests-26.03/applications/tensorboard/tensorboard-controller/upstream/overlays/kubeflow
-- manifests-26.03/applications/tensorboard/tensorboards-web-app/upstream/overlays/istio
-- manifests-26.03/applications/trainer/overlays
-- manifests-26.03/common/user-namespace/base
-- manifests-26.03/applications/kserve/kserve
-- manifests-26.03/applications/kserve/models-web-app/overlays/kubeflow
-- manifests-26.03/applications/spark/spark-operator/overlays/kubeflow
+- ../minimal
+- ../../../manifests-26.03/applications/katib/upstream/installs/katib-with-kubeflow
+- ../../../manifests-26.03/applications/tensorboard/tensorboard-controller/upstream/overlays/kubeflow
+- ../../../manifests-26.03/applications/tensorboard/tensorboards-web-app/upstream/overlays/istio
+- ../../../manifests-26.03/applications/trainer/overlays
+- ../../../manifests-26.03/applications/spark/spark-operator/overlays/kubeflow

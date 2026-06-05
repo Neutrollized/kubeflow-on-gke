@@ -1,0 +1,63 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+sortOptions:
+  legacySortOptions:
+    orderFirst:
+    - Namespace
+    - ResourceQuota
+    - StorageClass
+    - CustomResourceDefinition
+    - MutatingWebhookConfiguration
+    - ServiceAccount
+    - PodSecurityPolicy
+    - NetworkPolicy
+    - Role
+    - ClusterRole
+    - RoleBinding
+    - ClusterRoleBinding
+    - ConfigMap
+    - Secret
+    - Endpoints
+    - Service
+    - LimitRange
+    - PriorityClass
+    - PersistentVolume
+    - PersistentVolumeClaim
+    - Deployment
+    - StatefulSet
+    - CronJob
+    - PodDisruptionBudget
+    orderLast:
+    - ValidatingWebhookConfiguration
+  order: legacy
+
+# Istio
+#- ../common/istio/istio-install/overlays/oauth2-proxy
+# NOTE: For Google Kubernetes Engine (GKE), use:
+# NOTE: For Istio Ambient Mode (sidecar-free), use one of:
+# - ../common/istio/istio-install/overlays/ambient-oauth2-proxy
+# - ../common/istio/istio-install/overlays/ambient-oauth2-proxy-gke
+# GKE mounts `/opt/cni/bin` as read-only. The GKE overlays use `/home/kubernetes/bin`.
+# For details, see [Istio CNI Prerequisites](https://istio.io/latest/docs/setup/additional-setup/cni/#prerequisites)
+# Oauth2-proxy
+# NOTE: only uncomment ONE of the following overlays, depending on your cluster type
+# - ../common/oauth2-proxy/overlays/m2m-dex-and-kind  # for KIND clusters (allows K8S JWTs for gateway auth)
+# - ../common/oauth2-proxy/overlays/m2m-dex-and-eks   # for EKS clusters (NOTE: requires you to configure issuer, see overlay)
+# Kubeflow Pipelines (SeaweedFS as default S3 storage)
+# - manifests-26.03/applications/pipeline/overlays  # Pipeline definitions stored in the database
+# Training Operator (v1)
+# - ../applications/training-operator/upstream/overlays/kubeflow
+resources:
+- ../base
+- ../../../manifests-26.03/applications/pipeline/upstream/env/cert-manager/platform-agnostic-multi-user-k8s-native
+- ../../../manifests-26.03/applications/centraldashboard/upstream/overlays/kserve
+- ../../../manifests-26.03/applications/admission-webhook/upstream/overlays/cert-manager
+- ../../../manifests-26.03/applications/jupyter/jupyter-web-app/upstream/overlays/istio
+- ../../../manifests-26.03/applications/jupyter/notebook-controller/upstream/overlays/kubeflow
+- ../../../manifests-26.03/applications/profiles/pss
+- ../../../manifests-26.03/applications/pvcviewer-controller/upstream/base
+- ../../../manifests-26.03/applications/volumes-web-app/upstream/overlays/istio
+- ../../../manifests-26.03/common/user-namespace/base
+- ../../../manifests-26.03/applications/kserve/kserve
+- ../../../manifests-26.03/applications/kserve/models-web-app/overlays/kubeflow

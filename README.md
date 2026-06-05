@@ -42,8 +42,19 @@ find . -name "kustomization.yaml" -execdir kustomize edit fix \;
 
 - single-command setup:
 ```sh
-while ! kustomize build . | kubectl apply --server-side --force-conflicts -f -; do echo "Retrying to apply resources"; sleep 20; done
+while ! kustomize build overlays/gke/minimal | kubectl apply --server-side --force-conflicts -f -; do echo "Retrying to apply resources"; sleep 20; done
 ```
+or
+```sh
+while ! kustomize build overlays/gke/full | kubectl apply --server-side --force-conflicts -f -; do echo "Retrying to apply resources"; sleep 20; done
+```
+
+> [!NOTE]
+> You can view the various `kustomization.yaml` files for details,
+> but `overlays/gke/full` deploys on top of `overlays/gke/minimal`,
+> which deploys on top of `overlays/gke/base`,
+> which deploys on top of `common`.
+> This pattern can be leveraged to deploy to AKS and EKS etc.
 
 Use `task clean` to delete the single-command setup (it's difficult to do a one-shot cleanup)
 

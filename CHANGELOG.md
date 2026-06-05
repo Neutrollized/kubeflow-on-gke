@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.0] - 2026-06-05
+### Changed
+- Introduced new structure to install GKE environment with kustomize (using `common/` and `overlays/`)
+
 ## [0.4.0] - 2026-06-01
 ### Added
 - Task `kf:port-forward:ml-pipeline` - this needs to be run to submit jobs to. The `kf:port-forward:ui` doesn't accept jobs
