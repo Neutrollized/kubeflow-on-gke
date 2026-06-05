@@ -35,6 +35,7 @@ sortOptions:
 # Istio
 #- ../common/istio/istio-install/overlays/oauth2-proxy
 # NOTE: For Google Kubernetes Engine (GKE), use:
+# - ../common/istio/istio-install/overlays/gke
 # NOTE: For Istio Ambient Mode (sidecar-free), use one of:
 # - ../common/istio/istio-install/overlays/ambient-oauth2-proxy
 # - ../common/istio/istio-install/overlays/ambient-oauth2-proxy-gke
@@ -44,10 +45,6 @@ sortOptions:
 # NOTE: only uncomment ONE of the following overlays, depending on your cluster type
 # - ../common/oauth2-proxy/overlays/m2m-dex-and-kind  # for KIND clusters (allows K8S JWTs for gateway auth)
 # - ../common/oauth2-proxy/overlays/m2m-dex-and-eks   # for EKS clusters (NOTE: requires you to configure issuer, see overlay)
-# Kubeflow Pipelines (SeaweedFS as default S3 storage)
-# - manifests-26.03/applications/pipeline/overlays  # Pipeline definitions stored in the database
-# Training Operator (v1)
-# - ../applications/training-operator/upstream/overlays/kubeflow
 resources:
 - ../../../common
 - ../../../manifests-26.03/common/istio/istio-install/overlays/gke

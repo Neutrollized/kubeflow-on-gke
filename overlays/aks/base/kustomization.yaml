@@ -32,14 +32,13 @@ sortOptions:
     - ValidatingWebhookConfiguration
   order: legacy
 
-# Kubeflow Pipelines (SeaweedFS as default S3 storage)
-# - manifests-26.03/applications/pipeline/overlays  # Pipeline definitions stored in the database
-# Training Operator (v1)
-# - ../applications/training-operator/upstream/overlays/kubeflow
+# Oauth2-proxy
+# NOTE: only uncomment ONE of the following overlays, depending on your cluster type
+# - ../common/oauth2-proxy/overlays/m2m-dex-and-kind  # for KIND clusters (allows K8S JWTs for gateway auth)
+# - ../common/oauth2-proxy/overlays/m2m-dex-and-eks   # for EKS clusters (NOTE: requires you to configure issuer, see overlay)
 resources:
-- ../minimal
-- ../../../manifests-26.03/applications/katib/upstream/installs/katib-with-kubeflow
-- ../../../manifests-26.03/applications/tensorboard/tensorboard-controller/upstream/overlays/kubeflow
-- ../../../manifests-26.03/applications/tensorboard/tensorboards-web-app/upstream/overlays/istio
-- ../../../manifests-26.03/applications/trainer/overlays
-- ../../../manifests-26.03/applications/spark/spark-operator/overlays/kubeflow
+- ../../../common
+- ../../../manifests-26.03/common/istio/istio-install/overlays/oauth2-proxy
+
+patches:
+- path: istio-webhook-aks-patch.yaml

@@ -1,5 +1,10 @@
 # Kubeflow
 
+> [!NOTE]
+> Even though this repo was originally created for GKE,
+> elements in the install have been adapted to also support 
+> AKS and EKS via `kustomize` with little to no modification
+
 Made up components which you can install the entire ecosystem or just pick the ones you use. Kubeflow components are:
 
 - Dashboard
